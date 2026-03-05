@@ -45,7 +45,6 @@
         }
         .whitespace-nowrap { white-space: nowrap; }
         
-        /* 16:9比率を意識し、カード位置を底上げ */
         .dashboard-container {
             height: 100vh;
             display: flex;
@@ -120,7 +119,7 @@
     </div>
 
     <script>
-        // --- 全画面表示の切り替え ---
+        // --- 1. 全画面表示 ---
         const fsBtn = document.getElementById('fullscreen-btn');
         const fsIcon = document.getElementById('fullscreen-icon');
         fsBtn.addEventListener('click', () => {
@@ -137,13 +136,13 @@
             fsBtn.classList.toggle('opacity-10', isFS);
         });
 
-        // --- テーマ切り替え ---
+        // --- 2. テーマ切り替え ---
         function updateTheme(hours) {
             const isDaytime = hours >= 6 && hours < 18;
             document.documentElement.classList.toggle('dark', !isDaytime);
         }
 
-        // --- 時計・日付表示 ---
+        // --- 3. 時計・日付表示 ---
         function updateClock() {
             const now = new Date();
             const h = String(now.getHours()).padStart(2, '0');
@@ -159,7 +158,7 @@
         setInterval(updateClock, 1000);
         updateClock();
 
-        // --- 天気情報の取得 (Open-Meteo) ---
+        // --- 4. 天気情報の取得 ---
         async function fetchWeather() {
             try {
                 const res = await fetch(`https://api.open-meteo.com/v1/forecast?latitude=35.7605&longitude=139.7229&current=weather_code&daily=temperature_2m_max,temperature_2m_min,precipitation_probability_max&timezone=Asia%2FTokyo`);
@@ -176,42 +175,51 @@
             } catch (e) { console.error(e); }
         }
 
-        // --- 運行情報の取得 (GitHub Pages対応・多重プロキシ・軽量JSON方式) ---
+        // --- 5. 運行情報の取得 (GitHub Pages対応：執念の4重再試行ロジック) ---
         async function fetchTrainStatus() {
             const targetApi = 'https://tetsudo.rti-giken.jp/free/delay.json';
             const container = document.getElementById('train-status-container');
             const updateTimeEl = document.getElementById('train-update-time');
             
-            // GitHub Pagesで成功しやすいプロキシ設定を順番に試す
+            // 成功確率の高いプロキシを優先順位をつけて並べる
+            // タイムスタンプ(?ts=)を付与してGitHubの強力なキャッシュを回避
+            const ts = Date.now();
             const proxies = [
-                { url: `https://api.allorigins.win/raw?url=${encodeURIComponent(targetApi)}`, type: 'raw' },
-                { url: `https://api.codetabs.com/v1/proxy?quest=${encodeURIComponent(targetApi)}`, type: 'raw' },
-                { url: `https://api.allorigins.win/get?url=${encodeURIComponent(targetApi)}`, type: 'get' },
-                { url: `https://corsproxy.io/?${encodeURIComponent(targetApi)}`, type: 'raw' }
+                `https://api.allorigins.win/raw?url=${encodeURIComponent(targetApi + '?ts=' + ts)}`,
+                `https://api.codetabs.com/v1/proxy?quest=${encodeURIComponent(targetApi + '?ts=' + ts)}`,
+                `https://corsproxy.io/?${encodeURIComponent(targetApi + '?ts=' + ts)}`,
+                `https://images1-focus-opensocial.googleusercontent.com/gadgets/proxy?container=focus&refresh=300&url=${encodeURIComponent(targetApi)}`
             ];
 
             let rawData = null;
             let success = false;
 
+            // 各プロキシを順番に試行。1つでも成功すればループを抜ける
             for (const proxy of proxies) {
                 try {
-                    // cache: 'no-store' でキャッシュによる古い情報を防止
-                    const res = await fetch(proxy.url, { cache: 'no-store' });
+                    console.log(`Trying proxy: ${proxy}`);
+                    const controller = new AbortController();
+                    const timeoutId = setTimeout(() => controller.abort(), 5000); // 5秒でタイムアウト
+
+                    const res = await fetch(proxy, { 
+                        signal: controller.signal,
+                        headers: { 'Accept': 'application/json' }
+                    });
+                    
+                    clearTimeout(timeoutId);
                     if (!res.ok) continue;
+
+                    const data = await res.json();
                     
-                    const responseData = await res.json();
-                    
-                    // AllOriginsの /get モードのみ contents に文字列で入る
-                    rawData = (proxy.type === 'get' && responseData.contents) 
-                              ? JSON.parse(responseData.contents) 
-                              : responseData;
+                    // AllOrigins等の特殊なレスポンス形式を吸収
+                    rawData = (typeof data.contents === 'string') ? JSON.parse(data.contents) : data;
                     
                     if (Array.isArray(rawData)) {
                         success = true;
                         break;
                     }
                 } catch (e) {
-                    console.warn("Proxy attempt failed:", proxy.url);
+                    console.warn(`Attempt failed for ${proxy}:`, e.message);
                     continue;
                 }
             }
@@ -220,8 +228,11 @@
                 const now = new Date();
                 updateTimeEl.textContent = `${now.getHours()}:${String(now.getMinutes()).padStart(2,'0')}`;
                 
-                // 埼京線のみを厳密に照合
-                const isSaikyoDelayed = rawData.some(line => line.name === '埼京線' || line.name === '埼京線・川越線');
+                // 埼京線のみを厳密にチェック
+                const isSaikyoDelayed = rawData.some(line => 
+                    line.name === '埼京線' || 
+                    line.name === '埼京線・川越線'
+                );
 
                 if (isSaikyoDelayed) {
                     container.innerHTML = `
@@ -240,21 +251,21 @@
                     `;
                 }
             } else {
+                // すべての試行が失敗した場合
                 container.innerHTML = `
                     <button onclick="fetchTrainStatus()" class="flex flex-col items-center text-slate-400 active:text-slate-200 transition-colors">
-                        <i class="fa-solid fa-triangle-exclamation text-xl mb-1 text-amber-500"></i>
+                        <i class="fa-solid fa-circle-exclamation text-xl mb-1 text-amber-500"></i>
                         <span class="text-[10px] font-bold uppercase tracking-widest">Connect Error</span>
                     </button>
                 `;
             }
         }
 
-        // 定期取得の設定
         fetchWeather(); 
-        setInterval(fetchWeather, 1800000); // 30分毎
+        setInterval(fetchWeather, 1800000); 
 
         fetchTrainStatus(); 
-        setInterval(fetchTrainStatus, 300000); // 5分毎
+        setInterval(fetchTrainStatus, 300000);
     </script>
 </body>
 </html>
