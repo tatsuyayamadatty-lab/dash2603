@@ -46,12 +46,12 @@
         }
         .whitespace-nowrap { white-space: nowrap; }
         
-        /* 画面全体のコンテナを16:9の比率を維持しやすいよう構成 */
+        /* 画面全体のコンテナ：下部のパディングを増やしてカードを上に押し上げる */
         .dashboard-container {
             height: 100vh;
             display: flex;
             flex-direction: column;
-            padding: 2vh 4vw;
+            padding: 2vh 4vw 8vh 4vw; 
         }
     </style>
 </head>
@@ -63,9 +63,9 @@
     </button>
 
     <div class="dashboard-container">
-        <!-- 時計エリア (中央に配置) -->
+        <!-- 時計エリア (中央に配置、下のマージンを少し削る) -->
         <div class="flex-grow flex flex-col justify-center items-center">
-            <div id="date-display" class="date-text font-roboto text-slate-500 dark:text-slate-400 font-medium tracking-[0.2em] mb-2 transition-colors duration-1000 uppercase">
+            <div id="date-display" class="date-text font-roboto text-slate-500 dark:text-slate-400 font-medium tracking-[0.2em] mb-1 transition-colors duration-1000 uppercase">
                 ----.--.-- ---
             </div>
             <div id="time-display" class="clock-text font-roboto font-bold tracking-[0.12em] text-slate-800 dark:text-white drop-shadow-md transition-colors duration-1000 flex items-baseline">
@@ -73,8 +73,8 @@
             </div>
         </div>
 
-        <!-- 情報エリア (下部) -->
-        <div class="h-[35vh] grid grid-cols-2 gap-4">
+        <!-- 情報エリア (下部、カードを少しコンパクトにして位置を上げる) -->
+        <div class="h-[32vh] grid grid-cols-2 gap-4">
             
             <!-- 天気 -->
             <div class="bg-white/80 dark:bg-slate-800/80 rounded-3xl p-5 flex flex-col justify-between backdrop-blur-sm border border-slate-200 dark:border-slate-700 shadow-xl transition-colors duration-1000">
