@@ -36,12 +36,13 @@
             transition: background-color 1s ease, color 1s ease;
         }
         .clock-text {
-            font-size: 20vw;
+            /* 横幅をゆったりさせるためにフォントサイズを微調整し、letter-spacingを広げました */
+            font-size: 18vw; 
             line-height: 1;
             font-variant-numeric: tabular-nums;
         }
         .date-text {
-            font-size: 5vw;
+            font-size: 4.5vw;
         }
         /* 文字のガタつき防止 */
         .whitespace-nowrap { white-space: nowrap; }
@@ -51,11 +52,13 @@
 
     <!-- 時計エリア -->
     <div class="flex-1 flex flex-col justify-center items-center">
-        <div id="date-display" class="date-text font-roboto text-slate-500 dark:text-slate-400 font-medium tracking-wider mb-2 transition-colors duration-1000 uppercase">
+        <!-- 日付も少し間隔を広げてゆったりと -->
+        <div id="date-display" class="date-text font-roboto text-slate-500 dark:text-slate-400 font-medium tracking-[0.2em] mb-4 transition-colors duration-1000 uppercase">
             ----.--.-- ---
         </div>
-        <div id="time-display" class="clock-text font-roboto font-bold tracking-tight text-slate-800 dark:text-white drop-shadow-md transition-colors duration-1000 flex items-baseline">
-            --:--<span class="text-[0.4em] text-slate-500 dark:text-slate-400 ml-2 md:ml-4">--</span>
+        <!-- tracking-widestに近い広めの間隔を設定 -->
+        <div id="time-display" class="clock-text font-roboto font-bold tracking-[0.12em] text-slate-800 dark:text-white drop-shadow-md transition-colors duration-1000 flex items-baseline">
+            --:--<span class="text-[0.4em] text-slate-500 dark:text-slate-400 ml-2 md:ml-4 tracking-normal">--</span>
         </div>
     </div>
 
@@ -118,7 +121,7 @@
             const minutes = String(now.getMinutes()).padStart(2, '0');
             const seconds = String(now.getSeconds()).padStart(2, '0');
             
-            document.getElementById('time-display').innerHTML = `${hoursStr}:${minutes}<span class="text-[0.4em] text-slate-500 dark:text-slate-400 ml-2 md:ml-4 transition-colors duration-1000">${seconds}</span>`;
+            document.getElementById('time-display').innerHTML = `${hoursStr}:${minutes}<span class="text-[0.4em] text-slate-500 dark:text-slate-400 ml-2 md:ml-4 transition-colors duration-1000 tracking-normal">${seconds}</span>`;
             
             const year = now.getFullYear();
             const month = String(now.getMonth() + 1).padStart(2, '0');
@@ -150,7 +153,7 @@
             } catch (e) { console.error(e); }
         }
 
-        // --- 電車 (CORS回避のための複数プロキシ試行) ---
+        // --- 電車 ---
         async function fetchTrainStatus() {
             const target = 'https://rti-giken.jp/fhc/api/train_tetsudo/delay.json';
             const proxies = [
