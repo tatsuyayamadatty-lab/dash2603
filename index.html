@@ -35,7 +35,6 @@
             overflow: hidden;
             transition: background-color 1s ease, color 1s ease;
         }
-        /* 縦の見切れを防ぐため、16:9の比率を意識してサイズを微調整 */
         .clock-text {
             font-size: 16vw; 
             line-height: 1;
@@ -46,7 +45,6 @@
         }
         .whitespace-nowrap { white-space: nowrap; }
         
-        /* 画面全体のコンテナ：下部のパディングを増やしてカードを上に押し上げる */
         .dashboard-container {
             height: 100vh;
             display: flex;
@@ -57,15 +55,15 @@
 </head>
 <body class="bg-slate-100 text-slate-800 dark:bg-slate-900 dark:text-slate-50 transition-colors duration-1000 relative">
 
-    <!-- 全画面表示ボタン (右上に配置) -->
+    <!-- 全画面表示ボタン -->
     <button id="fullscreen-btn" class="absolute top-2 right-4 z-50 w-10 h-10 flex items-center justify-center rounded-full bg-white/20 dark:bg-slate-800/20 backdrop-blur-md border border-slate-300 dark:border-slate-700 text-slate-500 dark:text-slate-400 hover:scale-110 transition-all active:scale-95 shadow-sm">
         <i id="fullscreen-icon" class="fa-solid fa-expand text-lg"></i>
     </button>
 
     <div class="dashboard-container">
-        <!-- 時計エリア (中央に配置、下のマージンを少し削る) -->
+        <!-- 時計エリア -->
         <div class="flex-grow flex flex-col justify-center items-center">
-            <div id="date-display" class="date-text font-roboto text-slate-500 dark:text-slate-400 font-medium tracking-[0.2em] mb-1 transition-colors duration-1000 uppercase">
+            <div id="date-display" class="date-text font-roboto text-slate-500 dark:text-slate-400 font-medium tracking-[0.2em] mb-1 transition-colors duration-1000 uppercase text-center">
                 ----.--.-- ---
             </div>
             <div id="time-display" class="clock-text font-roboto font-bold tracking-[0.12em] text-slate-800 dark:text-white drop-shadow-md transition-colors duration-1000 flex items-baseline">
@@ -73,7 +71,7 @@
             </div>
         </div>
 
-        <!-- 情報エリア (下部、カードを少しコンパクトにして位置を上げる) -->
+        <!-- 情報エリア -->
         <div class="h-[32vh] grid grid-cols-2 gap-4">
             
             <!-- 天気 -->
@@ -104,92 +102,80 @@
                 </div>
             </div>
 
-            <!-- 電車 -->
-            <div class="bg-white/80 dark:bg-slate-800/80 rounded-3xl p-5 flex flex-col justify-between backdrop-blur-sm border border-slate-200 dark:border-slate-700 shadow-xl transition-colors duration-1000">
-                <div class="flex items-center text-slate-500 dark:text-slate-400 text-lg md:text-xl font-medium whitespace-nowrap">
-                    <i class="fa-solid fa-train-subway mr-2"></i> 埼京線 運行情報
+            <!-- 電車：タップで詳細を表示 -->
+            <a href="https://transit.yahoo.co.jp/diainfo/46/0" target="_blank" id="train-card" class="bg-white/80 dark:bg-slate-800/80 rounded-3xl p-5 flex flex-col justify-between backdrop-blur-sm border border-slate-200 dark:border-slate-700 shadow-xl transition-all duration-300 active:scale-95 active:bg-slate-200 dark:active:bg-slate-700 relative overflow-hidden group">
+                <div class="flex items-center justify-between text-slate-500 dark:text-slate-400 text-lg md:text-xl font-medium whitespace-nowrap">
+                    <span><i class="fa-solid fa-train-subway mr-2"></i> 埼京線 運行情報</span>
+                    <i class="fa-solid fa-up-right-from-square text-xs opacity-40 group-hover:opacity-100 transition-opacity"></i>
                 </div>
                 <div id="train-status-container" class="flex-1 flex items-center justify-center text-center">
-                    <div class="flex items-center text-xl font-bold text-slate-400 whitespace-nowrap">
-                        <i class="fa-solid fa-spinner fa-spin mr-3"></i> 取得中
+                    <div class="flex flex-col items-center text-slate-400 whitespace-nowrap">
+                        <i class="fa-solid fa-spinner fa-spin text-2xl mb-2"></i>
+                        <span class="text-sm font-bold">情報を読み込み中</span>
                     </div>
                 </div>
-            </div>
+            </a>
         </div>
     </div>
 
     <script>
-        // --- 全画面表示の切り替え ---
+        // --- 全画面表示 ---
         const fsBtn = document.getElementById('fullscreen-btn');
         const fsIcon = document.getElementById('fullscreen-icon');
-
         fsBtn.addEventListener('click', () => {
             if (!document.fullscreenElement) {
-                document.documentElement.requestFullscreen().catch(err => {
-                    console.error(`Error: ${err.message}`);
-                });
+                document.documentElement.requestFullscreen().catch(e => console.error(e));
             } else {
                 document.exitFullscreen();
             }
         });
-
         document.addEventListener('fullscreenchange', () => {
-            if (document.fullscreenElement) {
-                fsIcon.classList.replace('fa-expand', 'fa-compress');
-                fsBtn.classList.add('opacity-10');
-            } else {
-                fsIcon.classList.replace('fa-compress', 'fa-expand');
-                fsBtn.classList.remove('opacity-10');
-            }
+            const isFS = !!document.fullscreenElement;
+            fsIcon.classList.toggle('fa-expand', !isFS);
+            fsIcon.classList.toggle('fa-compress', isFS);
+            fsBtn.classList.toggle('opacity-10', isFS);
         });
 
         // --- テーマ切り替え ---
         function updateTheme(hours) {
-            const isDaytime = hours >= 6 && hours < 18;
-            document.documentElement.classList.toggle('dark', !isDaytime);
+            const isDay = hours >= 6 && hours < 18;
+            document.documentElement.classList.toggle('dark', !isDay);
         }
 
         // --- 時計・日付 ---
         function updateClock() {
             const now = new Date();
-            const hours = now.getHours();
-            const hoursStr = String(hours).padStart(2, '0');
-            const minutes = String(now.getMinutes()).padStart(2, '0');
-            const seconds = String(now.getSeconds()).padStart(2, '0');
+            const h = String(now.getHours()).padStart(2, '0');
+            const m = String(now.getMinutes()).padStart(2, '0');
+            const s = String(now.getSeconds()).padStart(2, '0');
+            document.getElementById('time-display').innerHTML = `${h}:${m}<span class="text-[0.4em] text-slate-500 dark:text-slate-400 ml-2 tracking-normal">${s}</span>`;
             
-            document.getElementById('time-display').innerHTML = `${hoursStr}:${minutes}<span class="text-[0.4em] text-slate-500 dark:text-slate-400 ml-2 transition-colors duration-1000 tracking-normal">${seconds}</span>`;
-            
-            const year = now.getFullYear();
-            const month = String(now.getMonth() + 1).padStart(2, '0');
-            const date = String(now.getDate()).padStart(2, '0');
-            const weekdays = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
-            document.getElementById('date-display').textContent = `${year}.${month}.${date} ${weekdays[now.getDay()]}`;
-            
-            updateTheme(hours);
+            const days = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
+            const dateStr = `${now.getFullYear()}.${String(now.getMonth()+1).padStart(2,'0')}.${String(now.getDate()).padStart(2,'0')} ${days[now.getDay()]}`;
+            document.getElementById('date-display').textContent = dateStr;
+            updateTheme(now.getHours());
         }
         setInterval(updateClock, 1000);
         updateClock();
 
         // --- 天気 ---
         async function fetchWeather() {
-            const url = `https://api.open-meteo.com/v1/forecast?latitude=35.7605&longitude=139.7229&current=weather_code&daily=temperature_2m_max,temperature_2m_min,precipitation_probability_max&timezone=Asia%2FTokyo`;
             try {
-                const res = await fetch(url);
-                const data = await res.json();
-                const code = data.current.weather_code;
-                
+                const res = await fetch(`https://api.open-meteo.com/v1/forecast?latitude=35.7605&longitude=139.7229&current=weather_code&daily=temperature_2m_max,temperature_2m_min,precipitation_probability_max&timezone=Asia%2FTokyo`);
+                const d = await res.json();
                 let icon = 'fa-sun', color = 'text-yellow-400';
+                const code = d.current.weather_code;
                 if (code >= 2 && code <= 3) { icon = 'fa-cloud-sun'; color = 'text-slate-400'; }
                 else if (code >= 50) { icon = 'fa-umbrella'; color = 'text-blue-400'; }
 
                 document.getElementById('weather-icon').className = `fa-solid ${icon} text-7xl md:text-8xl ${color} drop-shadow transition-colors duration-1000`;
-                document.getElementById('pop').innerHTML = `${data.daily.precipitation_probability_max[0]}<span class="text-xl md:text-2xl text-slate-500 dark:text-slate-400">%</span>`;
-                document.getElementById('temp-max').innerHTML = `${Math.round(data.daily.temperature_2m_max[0])}<span class="text-xl md:text-2xl text-rose-400/70">°</span>`;
-                document.getElementById('temp-min').innerHTML = `${Math.round(data.daily.temperature_2m_min[0])}<span class="text-xl md:text-2xl text-cyan-400/70">°</span>`;
+                document.getElementById('pop').innerHTML = `${d.daily.precipitation_probability_max[0]}<span class="text-xl md:text-2xl text-slate-500 dark:text-slate-400">%</span>`;
+                document.getElementById('temp-max').innerHTML = `${Math.round(d.daily.temperature_2m_max[0])}<span class="text-xl md:text-2xl text-rose-400/70">°</span>`;
+                document.getElementById('temp-min').innerHTML = `${Math.round(d.daily.temperature_2m_min[0])}<span class="text-xl md:text-2xl text-cyan-400/70">°</span>`;
             } catch (e) { console.error(e); }
         }
 
-        // --- 電車 ---
+        // --- 運行情報 (埼京線のみを厳密に判定) ---
         async function fetchTrainStatus() {
             const target = 'https://rti-giken.jp/fhc/api/train_tetsudo/delay.json';
             const proxies = [
@@ -197,30 +183,46 @@
                 `https://corsproxy.io/?${encodeURIComponent(target)}`
             ];
 
-            let data = null;
+            let rawData = null;
             for (const p of proxies) {
                 try {
                     const res = await fetch(p);
+                    if (!res.ok) continue;
                     const json = await res.json();
-                    const content = p.includes('allorigins') ? JSON.parse(json.contents) : json;
-                    if (Array.isArray(content)) { data = content; break; }
+                    rawData = p.includes('allorigins') ? JSON.parse(json.contents) : json;
+                    if (Array.isArray(rawData)) break;
                 } catch (e) { continue; }
             }
 
             const container = document.getElementById('train-status-container');
-            if (!data) {
-                container.innerHTML = '<div class="text-slate-400 text-lg font-bold">情報取得待機中...</div>';
+            if (!rawData) {
+                container.innerHTML = '<div class="text-slate-400 text-lg font-bold italic tracking-widest">CONNECTING...</div>';
                 return;
             }
 
-            const isDelay = data.some(t => t.name === '埼京線');
-            container.innerHTML = isDelay ? 
-                `<div class="flex flex-col items-center"><div class="text-3xl md:text-4xl font-bold text-rose-500 tracking-tight"><i class="fa-solid fa-triangle-exclamation mr-2"></i>運行情報あり</div><div class="text-slate-500 dark:text-slate-300 text-sm md:text-base font-medium mt-1">ダイヤに乱れがあります</div></div>` :
-                `<div class="text-3xl md:text-4xl font-bold text-emerald-400 tracking-tight"><i class="fa-solid fa-circle-check mr-2"></i>平常運転</div>`;
+            // 取得した全路線の遅延リストの中から、名前が「埼京線」に完全一致するものだけを探す
+            const isSaikyoDelayed = rawData.some(line => line.name === '埼京線');
+
+            if (isSaikyoDelayed) {
+                container.innerHTML = `
+                    <div class="flex flex-col items-center">
+                        <div class="text-3xl md:text-4xl font-bold text-rose-500 tracking-tight whitespace-nowrap">
+                            <i class="fa-solid fa-triangle-exclamation mr-2"></i>運行情報あり
+                        </div>
+                        <div class="text-slate-500 dark:text-slate-300 text-xs md:text-sm font-medium mt-1 animate-pulse">タップして詳細を確認</div>
+                    </div>
+                `;
+            } else {
+                container.innerHTML = `
+                    <div class="text-3xl md:text-4xl font-bold text-emerald-400 tracking-tight whitespace-nowrap">
+                        <i class="fa-solid fa-circle-check mr-2"></i>平常運転
+                    </div>
+                `;
+            }
         }
 
         fetchWeather(); setInterval(fetchWeather, 1800000);
-        fetchTrainStatus(); setInterval(fetchTrainStatus, 600000);
+        fetchTrainStatus(); setInterval(fetchTrainStatus, 300000);
     </script>
 </body>
 </html>
