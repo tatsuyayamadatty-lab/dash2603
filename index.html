@@ -5,12 +5,12 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Fire HD 8 Dashboard</title>
     
-    <!-- Google Fonts: Roboto (時計・数字用) & Noto Sans JP (日本語用) -->
+    <!-- Google Fonts: Roboto (時計用) & Noto Sans JP -->
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link href="https://fonts.googleapis.com/css2?family=Roboto:wght@400;700&family=Noto+Sans+JP:wght@400;500;700&display=swap" rel="stylesheet">
     
-    <!-- FontAwesome (アイコン用) -->
+    <!-- Icons -->
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
     
     <!-- Tailwind CSS -->
@@ -45,6 +45,7 @@
         }
         .whitespace-nowrap { white-space: nowrap; }
         
+        /* 16:9比率を意識し、カード位置を底上げ */
         .dashboard-container {
             height: 100vh;
             display: flex;
@@ -103,7 +104,7 @@
             </div>
 
             <!-- 運行情報カード -->
-            <div id="train-card" class="bg-white/80 dark:bg-slate-800/80 rounded-3xl p-5 flex flex-col justify-between backdrop-blur-sm border border-slate-200 dark:border-slate-700 shadow-xl transition-colors duration-1000 relative overflow-hidden">
+            <div id="train-card" class="bg-white/80 dark:bg-slate-800/80 rounded-3xl p-5 flex flex-col justify-between backdrop-blur-sm border border-slate-200 dark:border-slate-700 shadow-xl transition-colors duration-1000 relative overflow-hidden text-left">
                 <div class="flex items-center text-slate-500 dark:text-slate-400 text-lg md:text-xl font-medium whitespace-nowrap justify-between">
                     <span><i class="fa-solid fa-train-subway mr-2"></i> 埼京線 運行情報</span>
                     <span id="train-update-time" class="text-[10px] opacity-40 font-roboto">--:--</span>
@@ -111,7 +112,7 @@
                 <div id="train-status-container" class="flex-1 flex items-center justify-center text-center">
                     <div class="flex flex-col items-center text-slate-400 whitespace-nowrap">
                         <i class="fa-solid fa-spinner fa-spin text-2xl mb-2"></i>
-                        <span class="text-sm font-bold tracking-widest uppercase text-emerald-500/50">Checking</span>
+                        <span class="text-sm font-bold tracking-widest uppercase">Fetching</span>
                     </div>
                 </div>
             </div>
@@ -119,20 +120,16 @@
     </div>
 
     <script>
-        // --- 全画面表示の切り替えロジック ---
+        // --- 全画面表示の切り替え ---
         const fsBtn = document.getElementById('fullscreen-btn');
         const fsIcon = document.getElementById('fullscreen-icon');
-
         fsBtn.addEventListener('click', () => {
             if (!document.fullscreenElement) {
-                document.documentElement.requestFullscreen().catch(err => {
-                    console.error(`Fullscreen Error: ${err.message}`);
-                });
+                document.documentElement.requestFullscreen().catch(err => console.error(err));
             } else {
                 document.exitFullscreen();
             }
         });
-
         document.addEventListener('fullscreenchange', () => {
             const isFS = !!document.fullscreenElement;
             fsIcon.classList.toggle('fa-expand', !isFS);
@@ -162,7 +159,7 @@
         setInterval(updateClock, 1000);
         updateClock();
 
-        // --- 天気情報の取得 ---
+        // --- 天気情報の取得 (Open-Meteo) ---
         async function fetchWeather() {
             try {
                 const res = await fetch(`https://api.open-meteo.com/v1/forecast?latitude=35.7605&longitude=139.7229&current=weather_code&daily=temperature_2m_max,temperature_2m_min,precipitation_probability_max&timezone=Asia%2FTokyo`);
@@ -179,62 +176,43 @@
             } catch (e) { console.error(e); }
         }
 
-        // --- 運行情報の取得 (埼京線のみを厳格に抽出) ---
+        // --- 運行情報の取得 (GitHub Pages対応・多重プロキシ・軽量JSON方式) ---
         async function fetchTrainStatus() {
+            const targetApi = 'https://tetsudo.rti-giken.jp/free/delay.json';
             const container = document.getElementById('train-status-container');
             const updateTimeEl = document.getElementById('train-update-time');
             
-            const sources = [
-                { type: 'json', url: 'https://rti-giken.jp/fhc/api/train_tetsudo/delay.json' },
-                { type: 'html', url: 'https://transit.yahoo.co.jp/diainfo/46/0' }
-            ];
-
+            // GitHub Pagesで成功しやすいプロキシ設定を順番に試す
             const proxies = [
-                'https://api.allorigins.win/get?url=',
-                'https://api.codetabs.com/v1/proxy?quest=',
-                'https://corsproxy.io/?'
+                { url: `https://api.allorigins.win/raw?url=${encodeURIComponent(targetApi)}`, type: 'raw' },
+                { url: `https://api.codetabs.com/v1/proxy?quest=${encodeURIComponent(targetApi)}`, type: 'raw' },
+                { url: `https://api.allorigins.win/get?url=${encodeURIComponent(targetApi)}`, type: 'get' },
+                { url: `https://corsproxy.io/?${encodeURIComponent(targetApi)}`, type: 'raw' }
             ];
 
-            let foundSaikyoDelay = false;
+            let rawData = null;
             let success = false;
 
-            for (const source of sources) {
-                if (success) break;
-
-                for (const proxy of proxies) {
-                    try {
-                        const finalUrl = proxy + encodeURIComponent(source.url);
-                        const res = await fetch(finalUrl);
-                        if (!res.ok) continue;
-
-                        if (source.type === 'json') {
-                            const data = await res.json();
-                            const content = data.contents ? JSON.parse(data.contents) : data;
-                            if (Array.isArray(content)) {
-                                // 「埼京線」という名前に完全一致するものだけを探す
-                                foundSaikyoDelay = content.some(line => line.name === '埼京線');
-                                success = true;
-                                break;
-                            }
-                        } else {
-                            const html = await res.text();
-                            const content = html.includes('"contents"') ? JSON.parse(html).contents : html;
-                            
-                            if (content.length > 500) {
-                                // ページ上部のメインステータス部分のみを抽出（関連路線を排除）
-                                const saikyoSectionMatch = content.match(/<dd class="trouble">([\s\S]*?)<\/dd>/) || 
-                                                           content.match(/<div id="mdServiceStatus">([\s\S]*?)<\/div>/);
-                                
-                                if (saikyoSectionMatch) {
-                                    const statusText = saikyoSectionMatch[1];
-                                    // メインのステータス表示エリアに「平常」の文字がない場合は遅延とみなす
-                                    foundSaikyoDelay = !statusText.includes('平常どおり');
-                                    success = true;
-                                    break;
-                                }
-                            }
-                        }
-                    } catch (e) { continue; }
+            for (const proxy of proxies) {
+                try {
+                    // cache: 'no-store' でキャッシュによる古い情報を防止
+                    const res = await fetch(proxy.url, { cache: 'no-store' });
+                    if (!res.ok) continue;
+                    
+                    const responseData = await res.json();
+                    
+                    // AllOriginsの /get モードのみ contents に文字列で入る
+                    rawData = (proxy.type === 'get' && responseData.contents) 
+                              ? JSON.parse(responseData.contents) 
+                              : responseData;
+                    
+                    if (Array.isArray(rawData)) {
+                        success = true;
+                        break;
+                    }
+                } catch (e) {
+                    console.warn("Proxy attempt failed:", proxy.url);
+                    continue;
                 }
             }
 
@@ -242,7 +220,10 @@
                 const now = new Date();
                 updateTimeEl.textContent = `${now.getHours()}:${String(now.getMinutes()).padStart(2,'0')}`;
                 
-                if (foundSaikyoDelay) {
+                // 埼京線のみを厳密に照合
+                const isSaikyoDelayed = rawData.some(line => line.name === '埼京線' || line.name === '埼京線・川越線');
+
+                if (isSaikyoDelayed) {
                     container.innerHTML = `
                         <div class="flex flex-col items-center">
                             <div class="text-3xl md:text-4xl font-bold text-rose-500 tracking-tight whitespace-nowrap">
@@ -260,19 +241,20 @@
                 }
             } else {
                 container.innerHTML = `
-                    <button onclick="fetchTrainStatus()" class="flex flex-col items-center text-slate-400 active:text-slate-200">
-                        <i class="fa-solid fa-rotate-right text-xl mb-1"></i>
+                    <button onclick="fetchTrainStatus()" class="flex flex-col items-center text-slate-400 active:text-slate-200 transition-colors">
+                        <i class="fa-solid fa-triangle-exclamation text-xl mb-1 text-amber-500"></i>
                         <span class="text-[10px] font-bold uppercase tracking-widest">Connect Error</span>
                     </button>
                 `;
             }
         }
 
+        // 定期取得の設定
         fetchWeather(); 
-        setInterval(fetchWeather, 1800000); 
+        setInterval(fetchWeather, 1800000); // 30分毎
 
         fetchTrainStatus(); 
-        setInterval(fetchTrainStatus, 300000);
+        setInterval(fetchTrainStatus, 300000); // 5分毎
     </script>
 </body>
 </html>
