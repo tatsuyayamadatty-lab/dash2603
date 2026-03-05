@@ -188,14 +188,18 @@
             }
         }
 
-        // --- 運行情報の取得 (複数のプロキシを試行して安定性を向上) ---
+        // --- 運行情報の取得 (GitHub Pages環境に強い取得ロジック) ---
         async function fetchTrainStatus() {
             const targetApi = 'https://rti-giken.jp/fhc/api/train_tetsudo/delay.json';
             const container = document.getElementById('train-status-container');
             
-            // 試行するプロキシサーバーのリスト
+            // GitHub Pagesで弾かれにくいプロキシを順番に試す
             const proxies = [
+                // 1. AllOrigins (JSON形式)
                 `https://api.allorigins.win/get?url=${encodeURIComponent(targetApi)}`,
+                // 2. AllOrigins (Raw形式 - こちらの方が安定する場合がある)
+                `https://api.allorigins.win/raw?url=${encodeURIComponent(targetApi)}`,
+                // 3. CORSproxy.io
                 `https://corsproxy.io/?${encodeURIComponent(targetApi)}`
             ];
 
@@ -207,16 +211,21 @@
                     const res = await fetch(proxy);
                     if (!res.ok) continue;
                     
-                    const json = await res.json();
-                    // alloriginsはjson.contentsに文字列としてデータが入る。corsproxyは直接JSONが返る。
-                    rawData = typeof json.contents === 'string' ? JSON.parse(json.contents) : json;
+                    if (proxy.includes('allorigins.win/get')) {
+                        const json = await res.json();
+                        rawData = JSON.parse(json.contents);
+                    } else if (proxy.includes('allorigins.win/raw')) {
+                        rawData = await res.json();
+                    } else {
+                        rawData = await res.json();
+                    }
                     
                     if (Array.isArray(rawData)) {
                         success = true;
                         break;
                     }
                 } catch (e) {
-                    console.warn(`Proxy failed: ${proxy}`, e);
+                    console.warn(`Proxy attempt failed: ${proxy}`, e);
                     continue;
                 }
             }
@@ -224,14 +233,14 @@
             if (!success) {
                 container.innerHTML = `
                     <button onclick="fetchTrainStatus()" class="flex flex-col items-center text-slate-400 active:text-slate-200 transition-colors">
-                        <i class="fa-solid fa-rotate-right text-xl mb-1"></i>
-                        <span class="text-xs font-bold uppercase tracking-widest">Retry</span>
+                        <i class="fa-solid fa-triangle-exclamation text-xl mb-1"></i>
+                        <span class="text-[10px] font-bold uppercase tracking-widest">Connect Error</span>
                     </button>
                 `;
                 return;
             }
 
-            // 埼京線のみをフィルタリング
+            // 埼京線のみを判定
             const isSaikyoDelayed = rawData.some(line => line.name === '埼京線');
 
             if (isSaikyoDelayed) {
@@ -252,7 +261,7 @@
             }
         }
 
-        // 初回実行とインターバル設定
+        // 初回実行とインターバル
         fetchWeather(); 
         setInterval(fetchWeather, 1800000); // 30分毎
 
