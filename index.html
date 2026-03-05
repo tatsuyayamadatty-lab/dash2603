@@ -36,7 +36,6 @@
             transition: background-color 1s ease, color 1s ease;
         }
         .clock-text {
-            /* 横幅をゆったりさせるためにフォントサイズを微調整し、letter-spacingを広げました */
             font-size: 18vw; 
             line-height: 1;
             font-variant-numeric: tabular-nums;
@@ -44,19 +43,21 @@
         .date-text {
             font-size: 4.5vw;
         }
-        /* 文字のガタつき防止 */
         .whitespace-nowrap { white-space: nowrap; }
     </style>
 </head>
-<body class="h-screen w-screen flex flex-col p-6 md:p-8 bg-slate-100 text-slate-800 dark:bg-slate-900 dark:text-slate-50 transition-colors duration-1000">
+<body class="h-screen w-screen flex flex-col p-6 md:p-8 bg-slate-100 text-slate-800 dark:bg-slate-900 dark:text-slate-50 transition-colors duration-1000 relative">
+
+    <!-- 全画面表示ボタン (右上に配置) -->
+    <button id="fullscreen-btn" class="absolute top-4 right-4 z-50 w-12 h-12 flex items-center justify-center rounded-full bg-white/20 dark:bg-slate-800/20 backdrop-blur-md border border-slate-300 dark:border-slate-700 text-slate-500 dark:text-slate-400 hover:scale-110 transition-all active:scale-95 shadow-sm">
+        <i id="fullscreen-icon" class="fa-solid fa-expand text-xl"></i>
+    </button>
 
     <!-- 時計エリア -->
     <div class="flex-1 flex flex-col justify-center items-center">
-        <!-- 日付も少し間隔を広げてゆったりと -->
         <div id="date-display" class="date-text font-roboto text-slate-500 dark:text-slate-400 font-medium tracking-[0.2em] mb-4 transition-colors duration-1000 uppercase">
             ----.--.-- ---
         </div>
-        <!-- tracking-widestに近い広めの間隔を設定 -->
         <div id="time-display" class="clock-text font-roboto font-bold tracking-[0.12em] text-slate-800 dark:text-white drop-shadow-md transition-colors duration-1000 flex items-baseline">
             --:--<span class="text-[0.4em] text-slate-500 dark:text-slate-400 ml-2 md:ml-4 tracking-normal">--</span>
         </div>
@@ -107,6 +108,30 @@
     </div>
 
     <script>
+        // --- 全画面表示の切り替え ---
+        const fsBtn = document.getElementById('fullscreen-btn');
+        const fsIcon = document.getElementById('fullscreen-icon');
+
+        fsBtn.addEventListener('click', () => {
+            if (!document.fullscreenElement) {
+                document.documentElement.requestFullscreen().catch(err => {
+                    console.error(`Error attempting to enable full-screen mode: ${err.message}`);
+                });
+            } else {
+                document.exitFullscreen();
+            }
+        });
+
+        document.addEventListener('fullscreenchange', () => {
+            if (document.fullscreenElement) {
+                fsIcon.classList.replace('fa-expand', 'fa-compress');
+                fsBtn.classList.add('opacity-30'); // 全画面時はさらに目立たなくする
+            } else {
+                fsIcon.classList.replace('fa-compress', 'fa-expand');
+                fsBtn.classList.remove('opacity-30');
+            }
+        });
+
         // --- テーマ切り替え ---
         function updateTheme(hours) {
             const isDaytime = hours >= 6 && hours < 18;
